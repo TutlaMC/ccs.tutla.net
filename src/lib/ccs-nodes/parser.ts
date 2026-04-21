@@ -1,0 +1,198 @@
+import { MarkerType } from 'reactflow';
+import type {Node, Edge} from 'reactflow';
+import { getNodeDef } from './registry';
+import { HANDLE_TYPE_COLORS, CCS_CONDITIONS } from './types';
+import type { CommandNodeData } from './CommandNode';
+
+export interface ParsedStatement {
+  command: string;
+  args: string;
+  children: ParsedStatement[];
+}
+
+export interface ParsedModule {
+  name: string;
+  desc: string;
+  author: string;
+  statements: ParsedStatement[];
+}
+
+function resolveCommand(token: string, restStr: string): string {
+  if (token === 'on') return 'on';
+  if (token === 'module') {
+    const sub = restStr.trim().split(/\s+/)[0];
+    if (sub === 'enable')  return 'module_enable';
+    if (sub === 'disable') return 'module_disable';
+    if (sub === 'create')  return 'module_create';
+    return '__def_module';
+  }
+  if (token === 'config') {
+    const sub = restStr.trim().split(/\s+/)[0];
+    if (['save', 'load', 'reload'].includes(sub)) return `config_${sub}`;
+  }
+  if (token === 'def') {
+    const sub = restStr.trim().split(/\s+/)[0];
+    if (sub === 'module') return '__def_module';
+    if (sub === 'desc')   return '__def_desc';
+    if (sub === 'func')   return 'def_func';
+    return '__def_module';
+  }
+  const aliases: Record<string, string> = {
+    '!if':    'if_not',
+    '!while': 'while_not',
+    func:     'function',
+    desc:     '__def_desc',
+  };
+  return aliases[token] ?? token;
+}
+
+export function parseCCS(code: string): ParsedModule[] {
+  const modules: ParsedModule[] = [];
+  const lines = code.split('\n');
+
+  let author = '@anonymous';
+  const authorLine = lines.find(l => l.trim().startsWith('//'));
+  if (authorLine) {
+    const m = authorLine.match(/\/\/\s*(@\S+)/);
+    if (m) author = m[1];
+  }
+
+  let current: ParsedModule | null = null;
+  let stack: ParsedStatement[][] = [];
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith('//')) continue;
+
+    const openings = (line.match(/\{/g) ?? []).length;
+    const closings = (line.match(/\}/g) ?? []).length;
+    const stripped = line.replace(/[{}]/g, '').trim();
+
+    if (!stripped) {
+      for (let i = 0; i < closings && stack.length > 1; i++) stack.pop();
+      continue;
+    }
+
+    const [token, ...rest] = stripped.split(/\s+/);
+    const restStr = rest.join(' ');
+    const cmd = resolveCommand(token, restStr);
+
+    if (cmd === '__def_module') {
+      const modName = restStr.replace(/^module\s+/, '').trim();
+      if (current) modules.push(current);
+      current = { name: modName, desc: '', author, statements: [] };
+      stack = [current.statements];
+      continue;
+    }
+
+    if (!current) continue;
+
+    if (cmd === '__def_desc' && stack.length <= 1) {
+      const m = stripped.match(/^(?:def\s+)?desc\s+"(.+)"/);
+      if (m) { current.desc = m[1]; continue; }
+    }
+
+    const stmt: ParsedStatement = { command: cmd, args: restStr, children: [] };
+    (stack[stack.length - 1] ?? []).push(stmt);
+
+    if (openings > closings) {
+      stack.push(stmt.children);
+    } else if (closings > openings) {
+      for (let i = 0; i < closings - openings && stack.length > 1; i++) stack.pop();
+    }
+  }
+
+  if (current) modules.push(current);
+  return modules;
+}
+
+function stmtToNodeData(stmt: ParsedStatement): CommandNodeData {
+  const def = getNodeDef(stmt.command);
+  const data: CommandNodeData = { ...def };
+  const args = stmt.args.trim();
+
+  if (stmt.command === 'on') {
+    const evtMatch = args.match(/^(\S+)/);
+    data.selectedEvent = (evtMatch?.[1] ?? 'tick') as any;
+    return data;
+  }
+
+  const parts = args.replace(/\s*\{.*$/, '').trim().split(/\s+/).filter(Boolean);
+  if (parts[0]) data.arg1 = parts[0];
+  if (parts[1]) data.arg2 = parts[1];
+  if (parts[2]) data.arg3 = parts[2];
+  if (parts[3]) data.arg4 = parts.slice(3).join(' ');
+
+  return data;
+}
+
+let _id = 0;
+export const resetId = () => { _id = 0; };
+export const uid = () => `n${_id++}`;
+
+function mkEdge(srcId: string, srcHandle: string, tgtId: string, tgtHandle: string | undefined, dataType: string): Edge {
+  const color = (HANDLE_TYPE_COLORS as any)[dataType] ?? '#aaaacc';
+  return {
+    id: `e-${srcId}-${tgtId}-${srcHandle}`,
+    source: srcId,
+    sourceHandle: srcHandle,
+    target: tgtId,
+    targetHandle: tgtHandle,
+    type: 'smoothstep',
+    style: { stroke: color, strokeWidth: 1.5, opacity: 0.55 },
+    markerEnd: { type: MarkerType.ArrowClosed, color, width: 10, height: 10 },
+  };
+}
+
+function statementsToGraph(
+  stmts: ParsedStatement[],
+  baseX: number,
+  startY: number,
+  parentId: string,
+  parentHandle: string,
+  parentDT: string,
+  nodes: Node[],
+  edges: Edge[],
+): number {
+  let y = startY;
+  for (const stmt of stmts) {
+    const nodeData = stmtToNodeData(stmt);
+    const nodeId = uid();
+
+    nodes.push({ id: nodeId, type: 'command', position: { x: baseX, y }, data: nodeData });
+    edges.push(mkEdge(parentId, parentHandle, nodeId, nodeData.inputs[0]?.id, parentDT));
+
+    y += 130;
+
+    if (stmt.children.length) {
+      const outPort = nodeData.outputs[0];
+      y = statementsToGraph(stmt.children, baseX + 300, y, nodeId, outPort?.id ?? 'out', outPort?.dataType ?? 'flow', nodes, edges);
+    }
+  }
+  return y;
+}
+
+export function buildGraph(modules: ParsedModule[]): { nodes: Node[]; edges: Edge[] } {
+  resetId();
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+
+  modules.forEach((mod, mi) => {
+    const moduleId = uid();
+    nodes.push({
+      id: moduleId,
+      type: 'command',
+      position: { x: mi * 560, y: 80 },
+      data: {
+        ...getNodeDef('def_module'),
+        moduleName: mod.name,
+        moduleDesc: mod.desc,
+        author: mod.author,
+      } as CommandNodeData,
+    });
+
+    statementsToGraph(mod.statements, mi * 560 + 300, 80, moduleId, 'events', 'event', nodes, edges);
+  });
+
+  return { nodes, edges };
+}
