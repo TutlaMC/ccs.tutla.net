@@ -30,13 +30,13 @@ def desc "My first module"`,
   {
     icon: '⟡',
     title: 'Connecting Multiple Nodes',
-    body: 'To chain multiple actions or conditions, connect them all to the same parent node. This builds a sequence — each node runs in order. If something isn’t connected to the main chain, it won’t be included in the final script.',
+    body: 'To chain multiple actions or conditions, connect them all to the same parent node. This builds a sequence — each node runs in order.',
     gif: "multiple.gif",
     },
     {
     icon: '⟁',
     title: 'Connect correctly!',
-    body: 'Not all handles are compatible. Connections must follow the script structure — for example, events should connect into the module node first. If a connection doesn’t work, it likely doesn’t match the expected syntax flow.',
+    body: 'Not all handles are compatible. Connections must follow the script syntax for example, events should connect into the module node. If a connection doesn’t work, it does not match syntax',
     gif: "incompatible.gif",
     },
   {
