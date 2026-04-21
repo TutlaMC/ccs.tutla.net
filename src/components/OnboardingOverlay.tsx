@@ -1,19 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import { tokenizeLine } from './CCSTextEditor';
+import { GitBranch, HandCoins } from 'lucide-react';
 
 interface Step {
   icon: string;
   title: string;
   body: string;
   code?: string;
+  gif?: string;
 }
 
 const STEPS: Step[] = [
   {
     icon: '◈',
-    title: 'Welcome to the CCS Editor',
-    body: 'ClickCrystals Script lets you build powerful in-game modules without compiling. Define modules, listen to events, and automate anything — all from this editor.',
+    title: "Welcome to the Tutla's CCS Editor",
+    body: 'ClickCrystals Script lets you build powerful in-game modules without having to learn goofy ass java. Automate anything within this editor.',
     code: `// @yourname
 def module my-module
 def desc "My first module"`,
@@ -21,29 +24,34 @@ def desc "My first module"`,
   {
     icon: '⬡',
     title: 'Node View',
-    body: 'The right panel is a visual node graph. Each line of your script becomes a connected node. Drag nodes from the palette on the left, connect handles, and the code writes itself.',
-    code: `on module_enable {
-  send "Module is on!"
-}`,
+    body: 'The right panel is a visual node graph. Each line of your script becomes a connected node. Drag nodes from the palette on the left, connect handles, and the code writes itself (you can copy it  from the Text panel).',
+    gif:"connect.gif",
+  },
+  {
+    icon: '⟡',
+    title: 'Connecting Multiple Nodes',
+    body: 'To chain multiple actions or conditions, connect them all to the same parent node. This builds a sequence — each node runs in order. If something isn’t connected to the main chain, it won’t be included in the final script.',
+    gif: "multiple.gif",
+    },
+    {
+    icon: '⟁',
+    title: 'Connect correctly!',
+    body: 'Not all handles are compatible. Connections must follow the script structure — for example, events should connect into the module node first. If a connection doesn’t work, it likely doesn’t match the expected syntax flow.',
+    gif: "incompatible.gif",
+    },
+  {
+    icon: '⬢',
+    title: 'Deleting Nodes',
+    body: "Click on a node, and press delete (on your keyboard). That's it!",
+    gif: "delete.gif"
   },
   {
     icon: '⌥',
     title: 'Text View',
-    body: 'Switch to Text View for raw script editing with syntax highlighting. Both views stay in sync — edit in one and the other updates instantly.',
+    body: 'Switch to Text View for raw script editing with syntax highlighting. Both views stay in sync; edit one and the other updates instantly (WIP).',
     code: `on right_click if holding #sword {
   turn_to nearest_entity :player then {
     if attack_progress >=0.9 input attack
-  }
-}`,
-  },
-  {
-    icon: '⬢',
-    title: 'Conditions & Flow',
-    body: 'Use if, while, and condition nodes to build logic. Connect a condition node\'s teal handle into any if or while node. Handles enforce types — wrong connections are blocked.',
-    code: `on tick if playing {
-  if health <=5.0 {
-    notify 3 "Low health!"
-    playsound #block.note_block.bass 1 0.5
   }
 }`,
   },
@@ -116,6 +124,11 @@ export default function OnboardingOverlay({ onDismiss }: Props) {
               </pre>
             </div>
           )}
+          {current.gif && (
+            <div className="mx-6 my-4 rounded-lg border border-white/5 bg-[#060610] overflow-hidden">
+              <img src={current.gif} />
+            </div>
+          )}
 
           <div className="flex items-center justify-between px-6 py-4 border-t border-white/5">
             <button
@@ -133,6 +146,23 @@ export default function OnboardingOverlay({ onDismiss }: Props) {
                   Back
                 </button>
               )}
+              {isLast ? <>
+                <button
+                    onClick={() => window.open('https://donatr.ee/tutlamc?utm_source=copy&utm_medium=share', '_blank')}
+                    className="font-mono text-xs px-5 py-2 rounded bg-[#111120] hover:bg-[#1a1a2e] text-[#ac8929] border border-[#ac892930] hover:border-[#ac8929] transition-all tracking-wider flex items-center gap-2"
+                    >
+                    <HandCoins size={14} strokeWidth={2} />
+                    Donate
+                </button>
+                <button
+                    onClick={() => window.open('https://github.com/TutlaMC/ccs.tutla.net', '_blank')}
+                    className="font-mono text-xs px-5 py-2 rounded bg-[#111120] hover:bg-[#1a1a2e] text-[#ac8929] border border-[#ac892930] hover:border-[#ac8929] transition-all tracking-wider flex items-center gap-2"
+                    >
+                    <GitBranch size={14} strokeWidth={2} />
+                    Check GitHub
+                </button>
+                
+              </> : <></>}
               <button
                 onClick={() => isLast ? onDismiss() : setStep(s => s + 1)}
                 className="font-mono text-xs px-5 py-2 rounded bg-[#ac8929] hover:bg-[#c9a030] text-black font-bold transition-all tracking-wider"
@@ -160,70 +190,3 @@ function CCSHighlight({ code }: { code: string }) {
   );
 }
 
-function tokenizeLine(line: string): React.ReactNode {
-  const tokens: React.ReactNode[] = [];
-  let remaining = line;
-  let key = 0;
-
-  while (remaining.length > 0) {
-    const commentMatch = remaining.match(/^(\/\/.*)/);
-    if (commentMatch) {
-      tokens.push(<span key={key++} className="text-white/25 italic">{commentMatch[1]}</span>);
-      break;
-    }
-
-    const stringMatch = remaining.match(/^("[^"]*")/);
-    if (stringMatch) {
-      tokens.push(<span key={key++} className="text-[#6db36d]">{stringMatch[1]}</span>);
-      remaining = remaining.slice(stringMatch[1].length);
-      continue;
-    }
-
-    const numMatch = remaining.match(/^([+\-<>=!]+[0-9]*\.?[0-9]+)/);
-    if (numMatch) {
-      tokens.push(<span key={key++} className="text-[#5b8dd9]">{numMatch[1]}</span>);
-      remaining = remaining.slice(numMatch[1].length);
-      continue;
-    }
-
-    const kwMatch = remaining.match(/^(def|on|if_not|if|while_not|while|loop_period|loop|execute_random|execute_period|execute|wait_random|wait|as|func|function|!if|!while)\b/);
-    if (kwMatch) {
-      tokens.push(<span key={key++} className="text-[#9d6fd4] font-semibold">{kwMatch[1]}</span>);
-      remaining = remaining.slice(kwMatch[1].length);
-      continue;
-    }
-
-    const cmdMatch = remaining.match(/^(module|desc|send|say|notify|input|switch|damage|turn_to|snap_to|playsound|config|drop|swap|teleport|velocity|hold_input|print|throw|exit)\b/);
-    if (cmdMatch) {
-      tokens.push(<span key={key++} className="text-[#ac8929]">{cmdMatch[1]}</span>);
-      remaining = remaining.slice(cmdMatch[1].length);
-      continue;
-    }
-
-    const condMatch = remaining.match(/^(holding|health|attack_progress|playing|in_game|on_ground|moving|jumping|targeting_entity|targeting_block|entity_in_range|block_in_range|module_enabled|module_disabled|inventory_has|hotbar_has|target_block|target_entity|input_active|armor|hunger|pos_x|pos_y|pos_z|dimension|effect_duration|effect_amplifier|in_singleplayer|chance_of|on_fire|frozen|blocking|dead|colliding|has_equipment|hurt_time|cursor_item|hovering_over|reference_entity|item_count|item_durability)\b/);
-    if (condMatch) {
-      tokens.push(<span key={key++} className="text-[#3bb8a0]">{condMatch[1]}</span>);
-      remaining = remaining.slice(condMatch[1].length);
-      continue;
-    }
-
-    const idMatch = remaining.match(/^([:#][a-zA-Z0-9_./]+)/);
-    if (idMatch) {
-      tokens.push(<span key={key++} className="text-[#d4a45b]">{idMatch[1]}</span>);
-      remaining = remaining.slice(idMatch[1].length);
-      continue;
-    }
-
-    const bracketMatch = remaining.match(/^([{}])/);
-    if (bracketMatch) {
-      tokens.push(<span key={key++} className="text-white/30">{bracketMatch[1]}</span>);
-      remaining = remaining.slice(1);
-      continue;
-    }
-
-    tokens.push(<span key={key++} className="text-white/60">{remaining[0]}</span>);
-    remaining = remaining.slice(1);
-  }
-
-  return <>{tokens}</>;
-}

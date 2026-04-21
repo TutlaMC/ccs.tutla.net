@@ -7,7 +7,7 @@ interface Props {
   onChange: (code: string) => void;
 }
 
-function tokenizeLine(line: string): React.ReactNode {
+export function tokenizeLine(line: string): React.ReactNode {
   const tokens: React.ReactNode[] = [];
   let remaining = line;
   let key = 0;
