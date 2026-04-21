@@ -18,12 +18,12 @@ import type {
   Connection,
 } from 'reactflow';
 
-import { CommandNode, type CommandNodeData } from '../../../../lib/ccs-nodes/CommandNode';
-import { NodePalette } from '../../../../lib/ccs-nodes/NodePalette';
-import { getNodeDef } from '../../../../lib/ccs-nodes/registry';
-import { parseCCS, buildGraph, uid } from '../../../../lib/ccs-nodes/parser';
-import { generateCCS } from '../../../../lib/ccs-nodes/generator';
-import { CATEGORY_COLORS, HANDLE_TYPE_COLORS, type HandleDataType } from '../../../../lib/ccs-nodes/types';
+import { CommandNode, type CommandNodeData } from '../lib/ccs-nodes/CommandNode';
+import { NodePalette } from '../lib/ccs-nodes/NodePalette';
+import { getNodeDef } from '../lib/ccs-nodes/registry';
+import { parseCCS, buildGraph, uid } from '../lib/ccs-nodes/parser';
+import { generateCCS } from '../lib/ccs-nodes/generator';
+import { CATEGORY_COLORS, HANDLE_TYPE_COLORS, type HandleDataType } from '../lib/ccs-nodes/types';
 
 const nodeTypes = { command: CommandNode };
 
