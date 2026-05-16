@@ -9,67 +9,131 @@ type Provider = 'claude' | 'openai' | 'gemini' | 'ollama';
 const PROVIDER_DEFAULTS: Record<Provider, { model: string; placeholder: string; label: string }> = {
   claude: { model: 'claude-haiku-4-5-20251001', placeholder: 'sk-ant-...', label: 'Anthropic API Key' },
   openai: { model: 'gpt-4o-mini',               placeholder: 'sk-...',     label: 'OpenAI API Key'   },
-  gemini: { model: 'gemini-1.5-flash',           placeholder: 'AIza...',    label: 'Gemini API Key'   },
+  gemini: { model: 'gemini-2.5-flash',           placeholder: 'AIza...',    label: 'Gemini API Key'   },
   ollama: { model: 'llama3.1:8b',                placeholder: 'http://localhost:11434', label: 'Ollama Base URL' },
 };
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
+function cmdSyntax(command: string): string {
+  const d = NODE_REGISTRY.find(n => n.command === command);
+  if (!d) return command;
+  const def = getNodeDef(command);
+  const data: Record<string, string> = { selectedEvent: 'tick' };
+  d.argHints.forEach((h, i) => {
+    data[`arg${i + 1}`] = h.startsWith('"') ? h.slice(1, -1) : h;
+  });
+  return def.toText(data);
+}
+
+function condSyntax(cond: string): string {
+  const shape = CONDITION_ARG_SHAPES[cond as keyof typeof CONDITION_ARG_SHAPES];
+  if (!shape) return cond;
+  switch (shape.type) {
+    case 'none':      return cond;
+    case 'id':        return `${cond} <:exact_id or #partial>`;
+    case 'range':     return `${cond} <>=N or <=N or >N or <N or =N>`;
+    case 'n':         return `${cond} <N>`;
+    case 'id+range':  return `${cond} <:exact_id or #partial> <>=N or <=N ...>`;
+    case 'xyz+id':    return `${cond} <~x> <~y> <~z> <:id>`;
+    case 'dimension': return `${cond} <overworld or the_nether or the_end>`;
+    case 'input':     return `${cond} <attack or use or forward or backward or strafe_left or strafe_right or jump or sprint or sneak or lock_cursor or unlock_cursor or left or right or middle or inventory>`;
+    default:          return cond;
+  }
+}
+
 function buildSystemPrompt(currentCode: string): string {
-  const commands = NODE_REGISTRY
+  const commandLines = NODE_REGISTRY
     .filter(d => d.palette && d.command !== 'def_module' && d.command !== 'condition')
-    .map(d => {
-      const hints = d.argHints.length ? ` ${d.argHints.join(' ')}` : '';
-      return `${d.command}${hints}`;
-    })
+    .map(d => `  ${cmdSyntax(d.command)}`)
     .join('\n');
 
-  return `You are a CCS (ClickCrystalsScript) coding assistant. CCS is a scripting language for the ClickCrystals Minecraft client mod.
+  const conditionLines = CCS_CONDITIONS
+    .map(c => `  ${condSyntax(c)}`)
+    .join('\n');
+
+  return `You are a CCS (ClickCrystalsScript) coding assistant for the ClickCrystals Minecraft client mod.
+
+============================
+STRICT RULE: You MUST ONLY use the exact commands, events, and conditions listed in this prompt. You MUST NOT invent, guess, or use anything not listed here. If the user asks for something that needs a command, event, or condition not in these lists, tell them it is not supported in CCS.
+============================
 
 ## SCRIPT STRUCTURE
-Every script defines modules. Each module has event handlers.
 
-def module <id>
-def desc "<description"
+Every script contains one or more modules. A module starts with a header, then event handlers inside { } blocks.
+
+// @author
+def module <module-id>
+def desc "<description>"
 
 on <event> {
   <commands>
 }
 
+Rules:
+- Module IDs use lowercase letters and hyphens only, e.g. my-module
+- def desc is optional
+- Lines starting with // are comments and are ignored by the runtime
+- Blocks open with { and close with }
+- Indentation is optional but recommended for readability
+
 ## EVENTS
-${CCS_EVENTS.join(', ')}
+
+These are the ONLY valid events. No other events exist:
+
+  ${CCS_EVENTS.join('\n  ')}
+
+Special: on key_press and on key_release take one extra argument — the key character.
+  on key_press <key>      example: on key_press e
+  on key_release <key>    example: on key_release r
+All other events take no extra argument.
 
 ## COMMANDS
-${commands}
+
+These are the ONLY valid commands. No other commands exist.
+Text in < > is a placeholder — replace it with real values. Quoted args need double quotes in real code.
+
+${commandLines}
+
+ID prefixes:
+  :item_id   exact match (e.g. :diamond_sword, :player, :stone)
+  #partial   partial name match (e.g. #sword matches any sword)
+
+Tilde prefix ~ means relative coordinate (e.g. ~5 means 5 above current Y).
 
 ## CONDITIONS
-Used after if, !if, while, !while:
-${CCS_CONDITIONS.join(', ')}
 
-Condition arg syntax:
-- No args: on_ground, playing, dead, moving, jumping, blocking, frozen, on_fire, targeting_entity, targeting_block, in_game, in_singleplayer, colliding
-- Item/block/entity ID: holding :item_id  (prefix : for exact, # for partial)
-- Numeric range: health >=10   attack_progress >=0.9   pos_y >=64
-- ID + range: entity_in_range :player >=5   block_in_range :stone <=3
-- Dimension: dimension overworld
+These are the ONLY valid conditions. No other conditions exist.
+Use conditions after: if, !if, while, !while
+
+${conditionLines}
+
+Range operators for conditions: >=  <=  >  <  =
+  Examples: health >=10   pos_y <=64   attack_progress >=0.9   entity_in_range :player >=5
 
 ## CONTROL FLOW
-if <condition> { ... }
-!if <condition> { ... }
-while <delay_seconds> <condition> { ... }
-!while <delay_seconds> <condition> { ... }
-loop <n> { ... }
-loop_period <n> <period_seconds> { ... }
-execute { ... }
-execute_random { ... }
-wait <seconds>
-wait_random <min> <max>
-func <name>
-def func <name> { ... }
-as <target> [id]
+
+Commands that take a block body use { } syntax:
+
+  if <condition> { ... }                        run body if condition is true
+  !if <condition> { ... }                       run body if condition is false
+  while <delay_s> <condition> { ... }           loop every delay_s seconds while condition is true
+  !while <delay_s> <condition> { ... }          loop every delay_s seconds while condition is false
+  loop <n> { ... }                              repeat n times immediately
+  loop_period <n> <period_s> { ... }            repeat n times with a delay between each
+  execute { ... }                               run the block
+  execute_random { ... }                        run one random line from the block
+  execute_period <N (seconds)> { ... }          run block with delay between each line
+  def func <function-name> { ... }              define a reusable function
+  turn_to <target_type> <ID> then { ... }       turn toward target, then run block
+  snap_to <target_type> <ID> then { ... }       snap toward target, then run block
+  on <event> { ... }                            event handler
+
+Call a defined function with: func <function-name>
 
 ## EXAMPLES
 
+Example 1 — greet on server join:
 // @player
 def module greet-on-join
 def desc "Sends a greeting when joining a server"
@@ -79,9 +143,10 @@ on game_join {
   say "Hello everyone!"
 }
 
+Example 2 — swap totem when health is low:
 // @player
 def module auto-totem
-def desc "Swaps totem to offhand when health is low"
+def desc "Swaps totem to offhand when health drops low"
 
 on tick {
   if health <=6 {
@@ -90,15 +155,29 @@ on tick {
   }
 }
 
-## RULES
-- ONLY use commands from the COMMANDS list above
-- ONLY use events from the EVENTS list above
-- ONLY use conditions from the CONDITIONS list above
-- When writing or modifying a script output ONLY the complete CCS code in a code block
-- Comments start with //
-- Do not invent commands, events, or conditions
+Example 3 — switch to sword if not holding it:
+// @player
+def module sword-swap
+def desc "Switches to diamond sword on left click"
+
+on left_click {
+  !if holding :diamond_sword {
+    switch :diamond_sword
+  }
+}
+
+## OUTPUT FORMAT
+
+When writing or modifying a script, output ONLY the complete CCS code inside a code block:
+\`\`\`
+<code here>
+\`\`\`
+
+Do not add explanation inside the code block. Explanation goes outside it.
+NEVER use a command, event, or condition not listed above.
 
 ## CURRENT SCRIPT
+
 \`\`\`
 ${currentCode}
 \`\`\``;
