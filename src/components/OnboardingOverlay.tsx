@@ -16,7 +16,7 @@ const STEPS: Step[] = [
   {
     icon: '◈',
     title: "Welcome to the Tutla's CCS Editor",
-    body: 'ClickCrystals Script lets you build powerful in-game modules without having to learn goofy ass java. Automate anything within this editor.',
+    body: 'ClickCrystals Script lets you build powerful in-game modules without having to learn goofy java. Automate anything within this editor. \n(Many CCS features have not been included yet)*',
     code: `// @yourname
 def module my-module
 def desc "My first module"`,
