@@ -10,7 +10,7 @@ const PROVIDER_DEFAULTS: Record<Provider, { model: string; placeholder: string; 
   claude: { model: 'claude-haiku-4-5-20251001', placeholder: 'sk-ant-...', label: 'Anthropic API Key' },
   openai: { model: 'gpt-4o-mini',               placeholder: 'sk-...',     label: 'OpenAI API Key'   },
   gemini: { model: 'gemini-2.5-flash',           placeholder: 'AIza...',    label: 'Gemini API Key'   },
-  ollama: { model: 'llama3.1:8b',                placeholder: 'http://localhost:11434', label: 'Ollama Base URL' },
+  ollama: { model: 'llama3.1:8b',                placeholder: 'http://localhost:11434', label: 'Ollama Base URL (needs to be publicly accessible, or this project cloned and run locally)' },
 };
 
 interface Message { role: 'user' | 'assistant'; content: string }
@@ -367,7 +367,7 @@ export default function AIPanel({ code, onCodeChange }: Props) {
             className="w-full bg-[#0d0d1a] border border-white/10 text-white/60 text-[11px] px-2 py-1.5 rounded outline-none focus:border-[#ac8929]/40 transition-colors"
           />
 
-          <p className="text-white/20 text-[10px]">{cfg.label} — session only, never stored</p>
+          <p className="text-white/20 text-[10px]">{cfg.label} - session only, not stored</p>
         </div>
       )}
 

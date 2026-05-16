@@ -55,6 +55,20 @@ def desc "My first module"`,
   }
 }`,
   },
+  {
+    icon: '⟡',
+    title: 'Generate Scripts with AI',
+    body: 'Generate scripts with AI. Describe it and let AI generate it. (WIP, frequently makes mistakes)',
+    code: `> Make me a script that exits the game when I press the key e
+> AI: Here's a script that exits the game when you press e
+// @player
+def module exit-on-e-key
+def desc "Exits the game when the 'e' key is pressed"
+
+on key_press e {
+  exit 0
+}`,
+    },
 ];
 
 interface Props {
