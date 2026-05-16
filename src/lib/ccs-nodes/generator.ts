@@ -25,7 +25,11 @@ function a(data: CommandNodeData, n: number): string {
 
 function emitLine(data: CommandNodeData): string {
   switch (data.command) {
-    case 'on':            return `on ${data.selectedEvent ?? 'tick'}`;
+    case 'on': {
+      const evt = data.selectedEvent ?? 'tick';
+      const key = (evt === 'key_press' || evt === 'key_release') ? a(data, 1) : '';
+      return `on ${evt}${key ? ` ${key}` : ''}`;
+    }
     case 'if':            return `if`;
     case 'if_not':        return `!if`;
     case 'while':         return `while ${a(data, 1) || '0.05'}`;

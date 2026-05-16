@@ -92,8 +92,12 @@ export const CommandNode = memo(({ data }: NodeProps<CommandNodeData>) => {
     }
 
     if (data.command === 'on') {
+      const needsKey = data.selectedEvent === 'key_press' || data.selectedEvent === 'key_release';
       return (
-        <Select label="Event" value={data.selectedEvent ?? CCS_EVENTS[0]} onChange={v => onChange({ selectedEvent: v as CCSEvent })} options={CCS_EVENTS} />
+        <>
+          <Select label="Event" value={data.selectedEvent ?? CCS_EVENTS[0]} onChange={v => onChange({ selectedEvent: v as CCSEvent })} options={CCS_EVENTS} />
+          {needsKey && <Field label="Key" value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder="e" />}
+        </>
       );
     }
 
@@ -143,7 +147,7 @@ export const CommandNode = memo(({ data }: NodeProps<CommandNodeData>) => {
 
   const displayLabel =
     data.command === 'on' && data.selectedEvent
-      ? `on ${data.selectedEvent}`
+      ? `on ${data.selectedEvent}${(data.selectedEvent === 'key_press' || data.selectedEvent === 'key_release') && data.arg1 ? ` ${data.arg1}` : ''}`
       : data.command === 'condition' && data.selectedCondition
       ? data.selectedCondition
       : data.label;

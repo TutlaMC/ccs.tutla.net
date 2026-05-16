@@ -112,8 +112,11 @@ function stmtToNodeData(stmt: ParsedStatement): CommandNodeData {
   const args = stmt.args.trim();
 
   if (stmt.command === 'on') {
-    const evtMatch = args.match(/^(\S+)/);
-    data.selectedEvent = (evtMatch?.[1] ?? 'tick') as any;
+    const parts = args.trim().split(/\s+/);
+    data.selectedEvent = (parts[0] ?? 'tick') as any;
+    if ((data.selectedEvent === 'key_press' || data.selectedEvent === 'key_release') && parts[1]) {
+      data.arg1 = parts[1];
+    }
     return data;
   }
 
