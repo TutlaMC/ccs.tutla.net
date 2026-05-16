@@ -122,6 +122,41 @@ function stmtToNodeData(stmt: ParsedStatement): CommandNodeData {
   return { ...base, ...parsed };
 }
 
+const CONDITION_COMMANDS = new Set(['if', 'if_not', 'while', 'while_not']);
+
+function extractCondition(command: string, args: string): { nodeArgs: string; condStr: string } {
+  if (command === 'if' || command === 'if_not') {
+    return { nodeArgs: '', condStr: args.trim() };
+  }
+  // while / while_not: first token is the delay arg, rest is the condition
+  const parts = args.trim().split(/\s+/);
+  return { nodeArgs: parts[0] ?? '', condStr: parts.slice(1).join(' ') };
+}
+
+function makeConditionNodeData(condStr: string): CommandNodeData {
+  const def = getNodeDef('condition');
+  const base: CommandNodeData = {
+    command:     def.command,
+    label:       def.label,
+    description: def.description,
+    category:    def.category,
+    argHints:    def.argHints,
+    inputs:      def.inputs,
+    outputs:     def.outputs,
+    palette:     def.palette,
+  };
+  const parts = condStr.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return base;
+  return {
+    ...base,
+    selectedCondition: parts[0],
+    ...(parts[1] ? { arg1: parts[1] } : {}),
+    ...(parts[2] ? { arg2: parts[2] } : {}),
+    ...(parts[3] ? { arg3: parts[3] } : {}),
+    ...(parts.length > 4 ? { arg4: parts.slice(4).join(' ') } : {}),
+  };
+}
+
 let _id = 0;
 export const resetId = () => { _id = 0; };
 export const uid = () => `n${_id++}`;
@@ -152,11 +187,23 @@ function statementsToGraph(
 ): number {
   let y = startY;
   for (const stmt of stmts) {
-    const nodeData = stmtToNodeData(stmt);
+    const isCondCmd = CONDITION_COMMANDS.has(stmt.command);
+    const { nodeArgs, condStr } = isCondCmd
+      ? extractCondition(stmt.command, stmt.args)
+      : { nodeArgs: stmt.args, condStr: '' };
+
+    const nodeData = stmtToNodeData(isCondCmd ? { ...stmt, args: nodeArgs } : stmt);
     const nodeId = uid();
 
     nodes.push({ id: nodeId, type: 'command', position: { x: baseX, y }, data: nodeData });
     edges.push(mkEdge(parentId, parentHandle, nodeId, nodeData.inputs[0]?.id, parentDT));
+
+    if (condStr) {
+      const condData = makeConditionNodeData(condStr);
+      const condId = uid();
+      nodes.push({ id: condId, type: 'command', position: { x: baseX - 250, y: y - 60 }, data: condData });
+      edges.push(mkEdge(condId, 'out', nodeId, 'condition', 'condition'));
+    }
 
     y += 130;
 
