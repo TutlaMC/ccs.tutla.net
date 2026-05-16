@@ -61,7 +61,7 @@ export const NODE_REGISTRY: CompiledNodeDef[] = [
     })
     .customFields(d => {
       const cond = (d.selectedCondition ?? 'playing') as CCSCondition;
-      const shape = CONDITION_ARG_SHAPES[cond];
+      const shape = CONDITION_ARG_SHAPES[cond] ?? { type: 'none' as const };
       const fields: UIField[] = [
         { kind: 'select', key: 'selectedCondition', label: 'Condition', options: CCS_CONDITIONS, default: 'playing', clearOnChange: ['arg1','arg2','arg3','arg4'] },
       ];

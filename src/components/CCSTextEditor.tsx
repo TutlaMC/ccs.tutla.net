@@ -1,10 +1,61 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
+import { CCS_EVENTS, CCS_CONDITIONS } from '../lib/ccs-nodes/types';
+import { NODE_REGISTRY } from '../lib/ccs-nodes/registry';
+import { resolveCommand } from '../lib/ccs-nodes/parser';
 
 interface Props {
   code: string;
   onChange: (code: string) => void;
+}
+
+const REGISTRY_COMMANDS = new Set(NODE_REGISTRY.map(d => d.command));
+const EVENTS_SET = new Set<string>(CCS_EVENTS);
+const CONDITIONS_SET = new Set<string>(CCS_CONDITIONS);
+
+function validateLine(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('//')) return null;
+
+  const parts = trimmed.replace(/[{}]/g, '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
+
+  const [token, ...rest] = parts;
+  const restStr = rest.join(' ');
+
+  if (token === 'on') {
+    const evt = rest[0];
+    if (evt && !EVENTS_SET.has(evt)) return `Unknown event: "${evt}"`;
+    return null;
+  }
+
+  if (token === 'if' || token === 'if_not' || token === '!if') {
+    const cond = rest[0];
+    if (cond && !CONDITIONS_SET.has(cond)) return `Unknown condition: "${cond}"`;
+    return null;
+  }
+
+  if (token === 'while' || token === 'while_not' || token === '!while') {
+    const cond = rest.find(r => !/^[0-9+\-.]/.test(r));
+    if (cond && !CONDITIONS_SET.has(cond)) return `Unknown condition: "${cond}"`;
+    return null;
+  }
+
+  const resolved = resolveCommand(token, restStr);
+  if (resolved.startsWith('__')) return null;
+  if (resolved === 'condition' || !REGISTRY_COMMANDS.has(resolved))
+    return `Unknown command: "${token}"`;
+  return null;
+}
+
+function validateCode(code: string): Map<number, string> {
+  const errors = new Map<number, string>();
+  for (const [i, line] of code.split('\n').entries()) {
+    const err = validateLine(line);
+    if (err) errors.set(i, err);
+  }
+  return errors;
 }
 
 export function tokenizeLine(line: string): React.ReactNode {
@@ -96,6 +147,7 @@ export function tokenizeLine(line: string): React.ReactNode {
 export default function CCSTextEditor({ code, onChange }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lines = code.split('\n');
+  const errors = useMemo(() => validateCode(code), [code]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const ta = e.currentTarget;
@@ -140,7 +192,13 @@ export default function CCSTextEditor({ code, onChange }: Props) {
         }}
       >
         {lines.map((_, i) => (
-          <div key={i}>{i + 1}</div>
+          <div
+            key={i}
+            title={errors.get(i)}
+            style={{ color: errors.has(i) ? '#c04040' : undefined }}
+          >
+            {i + 1}
+          </div>
         ))}
       </div>
 
@@ -157,7 +215,13 @@ export default function CCSTextEditor({ code, onChange }: Props) {
           }}
         >
           {lines.map((line, i) => (
-            <div key={i} style={{ minHeight: '1.6em' }}>
+            <div
+              key={i}
+              style={{
+                minHeight: '1.6em',
+                background: errors.has(i) ? 'rgba(200, 50, 50, 0.1)' : 'transparent',
+              }}
+            >
               {tokenizeLine(line)}
             </div>
           ))}

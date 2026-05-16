@@ -17,7 +17,7 @@ export interface ParsedModule {
   statements: ParsedStatement[];
 }
 
-function resolveCommand(token: string, restStr: string): string {
+export function resolveCommand(token: string, restStr: string): string {
   if (token === 'on') return 'on';
   if (token === 'module') {
     const sub = restStr.trim().split(/\s+/)[0];
