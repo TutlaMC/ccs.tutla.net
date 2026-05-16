@@ -25,7 +25,7 @@ type View = 'nodes' | 'text';
 export default function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [view, setView] = useState<View>('nodes');
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   useEffect(() => {
     if (!localStorage.getItem(ONBOARDING_KEY)) {
