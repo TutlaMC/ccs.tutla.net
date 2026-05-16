@@ -2,6 +2,7 @@ import './App.css'
 import CCSFlowWrapper from './components/CCSFlowWrapper'
 import CCSTextEditor from './components/CCSTextEditor';
 import OnboardingOverlay from './components/OnboardingOverlay';
+import AIPanel from './components/AIPanel';
 
 import { useState, useEffect } from 'react';
 
@@ -26,6 +27,7 @@ export default function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [view, setView] = useState<View>('nodes');
   const [showOnboarding, setShowOnboarding] = useState(true);
+  const [showAI, setShowAI] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem(ONBOARDING_KEY)) {
@@ -84,6 +86,16 @@ export default function App() {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowAI(s => !s)}
+            className={`text-xs px-3 py-1 rounded border transition-all ${
+              showAI
+                ? 'bg-[#ac8929] text-black font-bold border-[#ac8929]'
+                : 'text-white/40 hover:text-white/70 border-white/8 hover:border-white/20'
+            }`}
+          >
+            AI
+          </button>
+          <button
             onClick={() => setShowOnboarding(true)}
             className="text-white/20 hover:text-white/50 text-xs px-2 py-1 rounded border border-white/8 hover:border-white/20 transition-all"
             title="Show guide"
@@ -93,13 +105,16 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden">
-        <div className={`h-full ${view === 'nodes' ? 'block' : 'hidden'}`}>
-          <CCSFlowWrapper code={code} onCodeChange={setCode} />
+      <main className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden">
+          <div className={`h-full ${view === 'nodes' ? 'block' : 'hidden'}`}>
+            <CCSFlowWrapper code={code} onCodeChange={setCode} />
+          </div>
+          <div className={`h-full ${view === 'text' ? 'block' : 'hidden'}`}>
+            <CCSTextEditor code={code} onChange={setCode} />
+          </div>
         </div>
-        <div className={`h-full ${view === 'text' ? 'block' : 'hidden'}`}>
-          <CCSTextEditor code={code} onChange={setCode} />
-        </div>
+        {showAI && <AIPanel code={code} onCodeChange={setCode} />}
       </main>
 
       {showOnboarding && <OnboardingOverlay onDismiss={dismissOnboarding} />}
