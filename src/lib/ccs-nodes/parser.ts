@@ -1,7 +1,7 @@
 import { MarkerType } from 'reactflow';
-import type {Node, Edge} from 'reactflow';
+import type { Node, Edge } from 'reactflow';
 import { getNodeDef } from './registry';
-import { HANDLE_TYPE_COLORS, CCS_CONDITIONS } from './types';
+import { HANDLE_TYPE_COLORS } from './types';
 import type { CommandNodeData } from './CommandNode';
 
 export interface ParsedStatement {
@@ -108,25 +108,18 @@ export function parseCCS(code: string): ParsedModule[] {
 
 function stmtToNodeData(stmt: ParsedStatement): CommandNodeData {
   const def = getNodeDef(stmt.command);
-  const data: CommandNodeData = { ...def };
-  const args = stmt.args.trim();
-
-  if (stmt.command === 'on') {
-    const parts = args.trim().split(/\s+/);
-    data.selectedEvent = (parts[0] ?? 'tick') as any;
-    if ((data.selectedEvent === 'key_press' || data.selectedEvent === 'key_release') && parts[1]) {
-      data.arg1 = parts[1];
-    }
-    return data;
-  }
-
-  const parts = args.replace(/\s*\{.*$/, '').trim().split(/\s+/).filter(Boolean);
-  if (parts[0]) data.arg1 = parts[0];
-  if (parts[1]) data.arg2 = parts[1];
-  if (parts[2]) data.arg3 = parts[2];
-  if (parts[3]) data.arg4 = parts.slice(3).join(' ');
-
-  return data;
+  const base: CommandNodeData = {
+    command:     def.command,
+    label:       def.label,
+    description: def.description,
+    category:    def.category,
+    argHints:    def.argHints,
+    inputs:      def.inputs,
+    outputs:     def.outputs,
+    palette:     def.palette,
+  };
+  const parsed = def.fromArgs(stmt.args);
+  return { ...base, ...parsed };
 }
 
 let _id = 0;
@@ -182,15 +175,23 @@ export function buildGraph(modules: ParsedModule[]): { nodes: Node[]; edges: Edg
 
   modules.forEach((mod, mi) => {
     const moduleId = uid();
+    const modDef = getNodeDef('def_module');
     nodes.push({
       id: moduleId,
       type: 'command',
       position: { x: mi * 560, y: 80 },
       data: {
-        ...getNodeDef('def_module'),
-        moduleName: mod.name,
-        moduleDesc: mod.desc,
-        author: mod.author,
+        command:     modDef.command,
+        label:       modDef.label,
+        description: modDef.description,
+        category:    modDef.category,
+        argHints:    modDef.argHints,
+        inputs:      modDef.inputs,
+        outputs:     modDef.outputs,
+        palette:     modDef.palette,
+        moduleName:  mod.name,
+        moduleDesc:  mod.desc,
+        author:      mod.author,
       } as CommandNodeData,
     });
 

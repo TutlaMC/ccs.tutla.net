@@ -1,5 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 import type { CommandNodeData } from './CommandNode';
+import { getNodeDef } from './registry';
 
 function childrenOf(nodeId: string, handle: string, edges: Edge[], nodeMap: Map<string, Node<CommandNodeData>>): Node<CommandNodeData>[] {
   return edges
@@ -11,70 +12,6 @@ function childrenOf(nodeId: string, handle: string, edges: Edge[], nodeMap: Map<
 function getConditionNode(nodeId: string, edges: Edge[], nodeMap: Map<string, Node<CommandNodeData>>): Node<CommandNodeData> | undefined {
   const edge = edges.find(e => e.target === nodeId && e.targetHandle === 'condition');
   return edge ? nodeMap.get(edge.source) : undefined;
-}
-
-function emitConditionStr(data: CommandNodeData): string {
-  const cond = data.selectedCondition ?? 'playing';
-  const a = (n: number) => (data as any)[`arg${n}`] ?? '';
-  return [cond, a(1), a(2), a(3), a(4)].filter(Boolean).join(' ');
-}
-
-function a(data: CommandNodeData, n: number): string {
-  return (data as any)[`arg${n}`] ?? '';
-}
-
-function emitLine(data: CommandNodeData): string {
-  switch (data.command) {
-    case 'on': {
-      const evt = data.selectedEvent ?? 'tick';
-      const key = (evt === 'key_press' || evt === 'key_release') ? a(data, 1) : '';
-      return `on ${evt}${key ? ` ${key}` : ''}`;
-    }
-    case 'if':            return `if`;
-    case 'if_not':        return `!if`;
-    case 'while':         return `while ${a(data, 1) || '0.05'}`;
-    case 'while_not':     return `!while ${a(data, 1) || '0.05'}`;
-    case 'loop':          return `loop ${a(data, 1) || 'n'}`;
-    case 'loop_period':   return `loop_period ${a(data, 1) || 'n'} ${a(data, 2) || '1'}`;
-    case 'execute':       return 'execute';
-    case 'execute_random':return 'execute_random';
-    case 'execute_period':return `execute_period ${a(data, 1) || '0.25'}`;
-    case 'wait':          return `wait ${a(data, 1) || '0.05'}`;
-    case 'wait_random':   return `wait_random ${a(data, 1) || '0.05'} ${a(data, 2) || '0.15'}`;
-    case 'as':            return `as ${a(data, 1) || 'target_entity'} ${a(data, 2)}`.trim();
-    case 'function':      return `func ${a(data, 1) || 'myFunc'}`;
-    case 'def_func':      return `def func ${a(data, 1) || 'myFunc'}`;
-    case 'send':          return `send "${a(data, 1) || 'Hello World'}"`;
-    case 'say':           return `say "${a(data, 1) || 'Hello World'}"`;
-    case 'print':         return `print "${a(data, 1) || 'Hello World'}"`;
-    case 'throw':         return `throw "${a(data, 1) || 'error'}"`;
-    case 'notify':        return `notify ${a(data, 1) || '3'} "${a(data, 2) || 'notification'}"`;
-    case 'playsound':     return `playsound ${a(data, 1) || '#block.note_block.pling'} ${a(data, 2) || '1'} ${a(data, 3) || '1'}`;
-    case 'exit':          return `exit ${a(data, 1) || '0'}`;
-    case 'module_enable':  return `module enable ${a(data, 1) || 'module-id'}`;
-    case 'module_disable': return `module disable ${a(data, 1) || 'module-id'}`;
-    case 'module_create':  return `module create ${a(data, 1) || 'module-id'}`;
-    case 'config_save':    return 'config save';
-    case 'config_load':    return 'config load';
-    case 'config_reload':  return 'config reload';
-    case 'input':          return `input ${a(data, 1) || 'attack'}`;
-    case 'hold_input':     return `hold_input ${a(data, 1) || 'attack'} ${a(data, 2) || '1.0'}`;
-    case 'switch':         return `switch ${a(data, 1) || '#totem'}`;
-    case 'swap':           return 'swap';
-    case 'drop':           return `drop ${a(data, 1) || 'all'}`;
-    case 'damage':         return `damage ${a(data, 1) || 'nearest_entity'} ${a(data, 2) || ':player'}`.trim();
-    case 'turn_to':        return `turn_to ${a(data, 1) || 'nearest_entity'} ${a(data, 2) || ':player'} then`;
-    case 'snap_to':        return `snap_to ${a(data, 1) || 'nearest_entity'} ${a(data, 2) || ':player'} then`;
-    case 'teleport':       return `teleport ${a(data, 1) || '~'} ${a(data, 2) || '~'} ${a(data, 3) || '~'}`;
-    case 'velocity':       return `velocity ${a(data, 1) || '~'} ${a(data, 2) || '~'} ${a(data, 3) || '~'}`;
-    case 'gui_drop':       return `gui_drop ${a(data, 1) || ':item'} ${a(data, 2) || 'all'}`;
-    case 'gui_switch':     return `gui_switch ${a(data, 1) || ':item'}`;
-    case 'gui_swap':       return `gui_swap ${a(data, 1) || ':item'}`;
-    case 'gui_quickmove':  return `gui_quickmove ${a(data, 1) || ':item'} ${a(data, 2)}`.trim();
-    case 'cancel_packet':  return `cancel_packet ${a(data, 1) || 'c2s'} ${a(data, 2) || 'playerMove'}`;
-    case 'uncancel_packet':return `uncancel_packet ${a(data, 1) || 'c2s'} ${a(data, 2) || 'playerMove'}`;
-    default:               return `${data.command} ${a(data, 1)} ${a(data, 2)}`.trim();
-  }
 }
 
 function hasBlockOutput(data: CommandNodeData): boolean {
@@ -94,20 +31,19 @@ function emitNode(
   const lines: string[] = [];
 
   const condNode = getConditionNode(node.id, edges, nodeMap);
-  const condStr = condNode ? emitConditionStr(condNode.data) : '';
+  const condStr = condNode ? getNodeDef('condition').toText(condNode.data) : '';
+
+  const line = getNodeDef(data.command).toText(data);
 
   if (!hasBlockOutput(data)) {
-    lines.push(`${pad}${emitLine(data)}`);
+    lines.push(`${pad}${line}`);
     return lines;
   }
 
-  let header = emitLine(data);
-  if ((data.command === 'if' || data.command === 'if_not') && condStr) {
-    header = `${header} ${condStr}`;
-  }
-  if ((data.command === 'while' || data.command === 'while_not') && condStr) {
-    header = `${header} ${condStr}`;
-  }
+  let header = line;
+  if ((data.command === 'if' || data.command === 'if_not') && condStr) header = `${header} ${condStr}`;
+  if ((data.command === 'while' || data.command === 'while_not') && condStr) header = `${header} ${condStr}`;
+
   lines.push(`${pad}${header} {`);
 
   const bodyPort = data.outputs.find(o => o.dataType === 'body' || o.dataType === 'callback');
@@ -156,7 +92,6 @@ export function generateCCS(nodes: Node[], edges: Edge[]): string {
 
     sections.push(moduleLines.join('\n'));
   }
-  let e = sections.join('\n');
-  console.log(e);
-  return e;
+
+  return sections.join('\n');
 }

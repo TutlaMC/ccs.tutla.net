@@ -1,24 +1,20 @@
 'use client';
 
 import { memo } from 'react';
-import { Handle, Position} from 'reactflow';
+import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import {
   CATEGORY_COLORS,
   CATEGORY_LABELS,
   HANDLE_TYPE_COLORS,
-  CCS_EVENTS,
-  CCS_CONDITIONS,
-  CONDITION_ARG_SHAPES,
   type NodeDefinition,
-  type HandleDataType,
-  type CCSEvent,
-  type CCSCondition,
 } from './types';
+import type { UIField } from './builder';
+import { getNodeDef } from './registry';
 
 export interface CommandNodeData extends NodeDefinition {
-  selectedEvent?: CCSEvent;
-  selectedCondition?: CCSCondition;
+  selectedEvent?: string;
+  selectedCondition?: string;
   moduleName?: string;
   moduleDesc?: string;
   author?: string;
@@ -50,21 +46,21 @@ const labelStyle: React.CSSProperties = {
   textTransform: 'uppercase' as const,
 };
 
-function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function TextField({ field, value, onChange }: { field: UIField & { kind: 'text' }; value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ marginBottom: 5 }}>
-      <div style={labelStyle}>{label}</div>
-      <input className="nodrag" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder ?? label} style={inputStyle} />
+      <div style={labelStyle}>{field.label}</div>
+      <input className="nodrag" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} style={inputStyle} />
     </div>
   );
 }
 
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: readonly string[] }) {
+function SelectField({ field, value, onChange }: { field: UIField & { kind: 'select' }; value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ marginBottom: 5 }}>
-      <div style={labelStyle}>{label}</div>
+      <div style={labelStyle}>{field.label}</div>
       <select className="nodrag" value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {field.options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     </div>
   );
@@ -78,79 +74,44 @@ function handlePos(index: number, total: number): string {
 export const CommandNode = memo(({ data }: NodeProps<CommandNodeData>) => {
   const color = CATEGORY_COLORS[data.category];
   const catLabel = CATEGORY_LABELS[data.category];
+  const def = getNodeDef(data.command);
+
   const onChange = (patch: Partial<CommandNodeData>) => data._onChange?.(patch);
 
   const renderBody = () => {
-    if (data.command === 'def_module') {
-      return (
-        <>
-          <Field label="Module ID" value={data.moduleName ?? ''} onChange={v => onChange({ moduleName: v })} placeholder="my-module" />
-          <Field label="Description" value={data.moduleDesc ?? ''} onChange={v => onChange({ moduleDesc: v })} placeholder="Module description" />
-          <Field label="Author" value={data.author ?? '@anonymous'} onChange={v => onChange({ author: v })} placeholder="@anonymous" />
-        </>
-      );
-    }
-
-    if (data.command === 'on') {
-      const needsKey = data.selectedEvent === 'key_press' || data.selectedEvent === 'key_release';
-      return (
-        <>
-          <Select label="Event" value={data.selectedEvent ?? CCS_EVENTS[0]} onChange={v => onChange({ selectedEvent: v as CCSEvent })} options={CCS_EVENTS} />
-          {needsKey && <Field label="Key" value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder="e" />}
-        </>
-      );
-    }
-
-    if (data.command === 'condition') {
-      const cond = (data.selectedCondition ?? 'playing') as CCSCondition;
-      const shape = CONDITION_ARG_SHAPES[cond];
-      return (
-        <>
-          <Select label="Condition" value={cond} onChange={v => onChange({ selectedCondition: v as CCSCondition, arg1: '', arg2: '', arg3: '', arg4: '' })} options={CCS_CONDITIONS} />
-          {shape.type === 'id' && <Field label={shape.label} value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder=":item_id or #partial" />}
-          {shape.type === 'range' && <Field label={shape.label} value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder=">=0.9" />}
-          {shape.type === 'n' && <Field label={shape.label} value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder="50" />}
-          {shape.type === 'id+range' && (
-            <>
-              <Field label={shape.idLabel} value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder=":id or #partial" />
-              <Field label={shape.rangeLabel} value={data.arg2 ?? ''} onChange={v => onChange({ arg2: v })} placeholder=">=1.0" />
-            </>
-          )}
-          {shape.type === 'xyz+id' && (
-            <>
-              <Field label="X" value={data.arg1 ?? ''} onChange={v => onChange({ arg1: v })} placeholder="~ or ^1" />
-              <Field label="Y" value={data.arg2 ?? ''} onChange={v => onChange({ arg2: v })} placeholder="~" />
-              <Field label="Z" value={data.arg3 ?? ''} onChange={v => onChange({ arg3: v })} placeholder="~" />
-              <Field label="Block/Entity ID" value={data.arg4 ?? ''} onChange={v => onChange({ arg4: v })} placeholder=":diamond_block" />
-            </>
-          )}
-          {shape.type === 'dimension' && (
-            <Select label="Dimension" value={data.arg1 ?? 'overworld'} onChange={v => onChange({ arg1: v })} options={['overworld', 'the_nether', 'the_end']} />
-          )}
-          {shape.type === 'input' && (
-            <Select label="Input" value={data.arg1 ?? 'attack'} onChange={v => onChange({ arg1: v })} options={['attack','use','forward','backward','strafe_left','strafe_right','jump','sprint','sneak','lock_cursor','unlock_cursor','left','right','middle','inventory']} />
-          )}
-        </>
-      );
-    }
-
-    if (data.argHints.length === 0) return null;
-
+    const fields = def.getFields(data);
+    if (!fields.length) return null;
     return (
       <>
-        {data.argHints.map((hint, i) => (
-          <Field key={i} label={hint} value={(data as any)[`arg${i + 1}`] ?? ''} onChange={v => onChange({ [`arg${i + 1}`]: v } as any)} placeholder={hint} />
-        ))}
+        {fields.map((field, i) => {
+          if (field.kind === 'text') {
+            return (
+              <TextField
+                key={i}
+                field={field}
+                value={(data as any)[field.key] ?? ''}
+                onChange={v => onChange({ [field.key]: v } as any)}
+              />
+            );
+          }
+          return (
+            <SelectField
+              key={i}
+              field={field}
+              value={(data as any)[field.key] ?? field.default}
+              onChange={v => {
+                const p: any = { [field.key]: v };
+                for (const k of field.clearOnChange ?? []) p[k] = '';
+                onChange(p);
+              }}
+            />
+          );
+        })}
       </>
     );
   };
 
-  const displayLabel =
-    data.command === 'on' && data.selectedEvent
-      ? `on ${data.selectedEvent}${(data.selectedEvent === 'key_press' || data.selectedEvent === 'key_release') && data.arg1 ? ` ${data.arg1}` : ''}`
-      : data.command === 'condition' && data.selectedCondition
-      ? data.selectedCondition
-      : data.label;
+  const displayLabel = def.displayLabel(data);
 
   return (
     <div style={{
