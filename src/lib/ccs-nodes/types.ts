@@ -108,6 +108,18 @@ export type ConditionArgShape =
   | { type: 'dimension' }
   | { type: 'input' };
 
+export function getRegistryMetadata() {
+  return {
+    categories: CATEGORY_LABELS,
+    categoryColors: CATEGORY_COLORS,
+    categoryDescriptions: CATEGORY_DESCRIPTIONS,
+    events: CCS_EVENTS,
+    conditions: CCS_CONDITIONS,
+    conditionArgShapes: CONDITION_ARG_SHAPES,
+    handleTypeColors: HANDLE_TYPE_COLORS,
+  };
+}
+
 export const CONDITION_ARG_SHAPES: Record<CCSCondition, ConditionArgShape> = {
   holding:                { type: 'id', label: 'Item ID' },
   off_holding:            { type: 'id', label: 'Item ID' },

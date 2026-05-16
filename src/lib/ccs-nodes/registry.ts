@@ -523,3 +523,16 @@ export function getNodeDef(command: string): CompiledNodeDef {
     displayLabel(_data: any): string { return command; },
   };
 }
+
+export function getRegistryAsJSON() {
+  return NODE_REGISTRY.map(node => ({
+    command: node.command,
+    label: node.label,
+    description: node.description,
+    category: node.category,
+    argHints: node.argHints,
+    inputs: node.inputs,
+    outputs: node.outputs,
+    palette: node.palette,
+  }));
+}
